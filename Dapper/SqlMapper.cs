@@ -13,7 +13,6 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -1751,13 +1750,13 @@ namespace Dapper
         {
             if (cmd.Parameters.Count == 0) return;
 
-            Dictionary<string, IDbDataParameter> parameters = new Dictionary<string, IDbDataParameter>(StringComparer.Ordinal);
+            Dictionary<string, IDbDataParameter> parameters = new(StringComparer.Ordinal);
 
             foreach (IDbDataParameter param in cmd.Parameters)
             {
                 if (!string.IsNullOrEmpty(param.ParameterName)) parameters[param.ParameterName] = param;
             }
-            HashSet<string> consumed = new HashSet<string>(StringComparer.Ordinal);
+            HashSet<string> consumed = new(StringComparer.Ordinal);
             bool firstMatch = true;
             cmd.CommandText = pseudoPositional.Replace(cmd.CommandText, match =>
             {
@@ -2149,7 +2148,7 @@ namespace Dapper
         private static bool TryStringSplit<T>(ref IEnumerable<T> list, int splitAt, string namePrefix, IDbCommand command, string colType, bool byPosition,
             Action<StringBuilder, T> append)
         {
-            if (!(list is ICollection<T> typed))
+            if (list is not ICollection<T> typed)
             {
                 typed = list.ToList();
                 list = typed; // because we still need to be able to iterate it, even if we fail here
@@ -2243,9 +2242,9 @@ namespace Dapper
         }
 
         // look for ? / @ / : *by itself*
-        private static readonly Regex smellsLikeOleDb = new Regex(@"(?<![\p{L}\p{N}@_])[?@:](?![\p{L}\p{N}@_])", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled),
-            literalTokens = new Regex(@"(?<![\p{L}\p{N}_])\{=([\p{L}\p{N}_]+)\}", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled),
-            pseudoPositional = new Regex(@"\?([\p{L}_][\p{L}\p{N}_]*)\?", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        private static readonly Regex smellsLikeOleDb = new(@"(?<![\p{L}\p{N}@_])[?@:](?![\p{L}\p{N}@_])", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled),
+            literalTokens = new(@"(?<![\p{L}\p{N}_])\{=([\p{L}\p{N}_]+)\}", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.Compiled),
+            pseudoPositional = new(@"\?([\p{L}_][\p{L}\p{N}_]*)\?", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
         /// <summary>
         /// Replace all literal tokens with their text form.
@@ -2355,7 +2354,7 @@ namespace Dapper
 
             var matches = literalTokens.Matches(sql);
             var found = new HashSet<string>(StringComparer.Ordinal);
-            List<LiteralToken> list = new List<LiteralToken>(matches.Count);
+            List<LiteralToken> list = new(matches.Count);
             foreach (Match match in matches)
             {
                 string token = match.Value;
@@ -2998,7 +2997,7 @@ namespace Dapper
         }
 
         // use Hashtable to get free lockless reading
-        private static readonly Hashtable _typeMaps = new Hashtable();
+        private static readonly Hashtable _typeMaps = new();
 
         /// <summary>
         /// Set custom mapping for type deserializers
@@ -3010,19 +3009,21 @@ namespace Dapper
             if (type == null)
                 throw new ArgumentNullException(nameof(type));
 
-            if (map == null || map is DefaultTypeMap)
+            switch (map)
             {
-                lock (_typeMaps)
-                {
-                    _typeMaps.Remove(type);
-                }
-            }
-            else
-            {
-                lock (_typeMaps)
-                {
-                    _typeMaps[type] = map;
-                }
+                case null:
+                case DefaultTypeMap:
+                    lock (_typeMaps)
+                    {
+                        _typeMaps.Remove(type);
+                    }
+                    break;
+                default:
+                    lock (_typeMaps)
+                    {
+                        _typeMaps[type] = map;
+                    }
+                    break;
             }
 
             PurgeQueryCacheByType(type);
